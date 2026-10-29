@@ -1,0 +1,1442 @@
+name: Build LitePlay Ultra Lite APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Generate Complete LitePlay Ultra Lite Android Project
+        shell: bash
+        run: |
+          set -e
+          mkdir -p app/src/main/java/com/liteplay/ultralite
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/values
+
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven { url = uri("https://jitpack.io") }
+              }
+          }
+          rootProject.name = "LitePlayUltraLite"
+          include(":app")
+          EOF
+
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.2.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.22" apply false
+          }
+          EOF
+
+          cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.liteplay.ultralite"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.liteplay.ultralite"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0.0-UltraLite"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+                  debug {
+                      isDebuggable = true
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation("com.google.android.material:material:1.11.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+              val media3Version = "1.2.1"
+              implementation("androidx.media3:media3-exoplayer:$media3Version")
+              implementation("androidx.media3:media3-session:$media3Version")
+              implementation("androidx.media3:media3-ui:$media3Version")
+              implementation("androidx.media3:media3-common:$media3Version")
+              implementation("io.github.anilbeesetti:nextlib-media3ext:0.8.2")
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/res/values/themes.xml
+          <resources>
+              <style name="Theme.LitePlay" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+                  <item name="colorPrimary">#00E5FF</item>
+                  <item name="colorPrimaryVariant">#00B8D4</item>
+                  <item name="colorOnPrimary">#000000</item>
+                  <item name="android:statusBarColor">#000000</item>
+                  <item name="android:navigationBarColor">#000000</item>
+                  <item name="android:windowBackground">#000000</item>
+              </style>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/drawable/ic_launcher.xml
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#05080D"
+                  android:pathData="M0,0h108v108h-108z"/>
+              <path
+                  android:fillColor="#00E5FF"
+                  android:pathData="M54,18A36,36 0 1,0 90,54A36,36 0 0,0 54,18ZM44,70V38L72,54Z"/>
+          </vector>
+          EOF
+
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.liteplay.ultralite">
+
+              <!-- Pure Offline Permissions - NO INTERNET PERMISSION -->
+              <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+              <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_launcher"
+                  android:roundIcon="@drawable/ic_launcher"
+                  android:label="LitePlay Ultra Lite"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.LitePlay">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+                      android:launchMode="singleTop">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".PlaybackService"
+                      android:exported="true"
+                      android:foregroundServiceType="mediaPlayback">
+                      <intent-filter>
+                          <action android:name="androidx.media3.session.MediaSessionService" />
+                      </intent-filter>
+                  </service>
+              </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/liteplay/ultralite/AppDatabase.kt
+          package com.liteplay.ultralite
+
+          import android.content.Context
+          import android.database.sqlite.SQLiteDatabase
+          import android.database.sqlite.SQLiteOpenHelper
+          import android.net.Uri
+
+          data class LocalMedia(
+              val id: Long,
+              val uri: Uri,
+              val title: String,
+              val artist: String,
+              val album: String,
+              val folder: String,
+              val duration: Long,
+              val isVideo: Boolean,
+              val mimeType: String,
+              val dateAdded: Long
+          )
+
+          class AppDatabase(context: Context) : SQLiteOpenHelper(context, "liteplay_ultra.db", null, 1) {
+
+              override fun onCreate(db: SQLiteDatabase) {
+                  db.execSQL("CREATE TABLE favorites (uri TEXT PRIMARY KEY)")
+                  db.execSQL("CREATE TABLE recent (uri TEXT PRIMARY KEY, played_at INTEGER, last_pos INTEGER)")
+                  db.execSQL("CREATE TABLE playlists (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE)")
+                  db.execSQL("CREATE TABLE playlist_items (playlist_id INTEGER, uri TEXT, sort_order INTEGER, PRIMARY KEY(playlist_id, uri))")
+              }
+
+              override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+
+              fun toggleFavorite(uri: String): Boolean {
+                  val db = writableDatabase
+                  val c = db.rawQuery("SELECT 1 FROM favorites WHERE uri = ?", arrayOf(uri))
+                  val exists = c.moveToFirst()
+                  c.close()
+                  return if (exists) {
+                      db.delete("favorites", "uri = ?", arrayOf(uri))
+                      false
+                  } else {
+                      db.execSQL("INSERT OR IGNORE INTO favorites (uri) VALUES (?)", arrayOf(uri))
+                      true
+                  }
+              }
+
+              fun isFavorite(uri: String): Boolean {
+                  val c = readableDatabase.rawQuery("SELECT 1 FROM favorites WHERE uri = ?", arrayOf(uri))
+                  val res = c.moveToFirst()
+                  c.close()
+                  return res
+              }
+
+              fun getFavorites(): Set<String> {
+                  val set = mutableSetOf<String>()
+                  val c = readableDatabase.rawQuery("SELECT uri FROM favorites", null)
+                  while (c.moveToNext()) set.add(c.getString(0))
+                  c.close()
+                  return set
+              }
+
+              fun saveRecentAndPosition(uri: String, pos: Long) {
+                  writableDatabase.execSQL(
+                      "INSERT OR REPLACE INTO recent (uri, played_at, last_pos) VALUES (?, ?, ?)",
+                      arrayOf(uri, System.currentTimeMillis(), pos)
+                  )
+              }
+
+              fun getSavedPosition(uri: String): Long {
+                  val c = readableDatabase.rawQuery("SELECT last_pos FROM recent WHERE uri = ?", arrayOf(uri))
+                  val pos = if (c.moveToFirst()) c.getLong(0) else 0L
+                  c.close()
+                  return pos
+              }
+
+              fun getRecentUris(): List<String> {
+                  val list = mutableListOf<String>()
+                  val c = readableDatabase.rawQuery("SELECT uri FROM recent ORDER BY played_at DESC LIMIT 50", null)
+                  while (c.moveToNext()) list.add(c.getString(0))
+                  c.close()
+                  return list
+              }
+
+              fun createPlaylist(name: String) {
+                  if (name.isBlank()) return
+                  writableDatabase.execSQL("INSERT OR IGNORE INTO playlists (name) VALUES (?)", arrayOf(name.trim()))
+              }
+
+              fun renamePlaylist(id: Long, newName: String) {
+                  if (newName.isBlank()) return
+                  writableDatabase.execSQL("UPDATE playlists SET name = ? WHERE id = ?", arrayOf(newName.trim(), id))
+              }
+
+              fun deletePlaylist(id: Long) {
+                  writableDatabase.delete("playlists", "id = ?", arrayOf(id.toString()))
+                  writableDatabase.delete("playlist_items", "playlist_id = ?", arrayOf(id.toString()))
+              }
+
+              fun getPlaylists(): List<Pair<Long, String>> {
+                  val list = mutableListOf<Pair<Long, String>>()
+                  val c = readableDatabase.rawQuery("SELECT id, name FROM playlists ORDER BY name ASC", null)
+                  while (c.moveToNext()) list.add(c.getLong(0) to c.getString(1))
+                  c.close()
+                  return list
+              }
+
+              fun addTrackToPlaylist(playlistId: Long, uri: String) {
+                  writableDatabase.execSQL(
+                      "INSERT OR REPLACE INTO playlist_items (playlist_id, uri, sort_order) VALUES (?, ?, ?)",
+                      arrayOf(playlistId, uri, System.currentTimeMillis())
+                  )
+              }
+
+              fun removeTrackFromPlaylist(playlistId: Long, uri: String) {
+                  writableDatabase.delete("playlist_items", "playlist_id = ? AND uri = ?", arrayOf(playlistId.toString(), uri))
+              }
+
+              fun getPlaylistTracks(playlistId: Long): List<String> {
+                  val list = mutableListOf<String>()
+                  val c = readableDatabase.rawQuery(
+                      "SELECT uri FROM playlist_items WHERE playlist_id = ? ORDER BY sort_order ASC",
+                      arrayOf(playlistId.toString())
+                  )
+                  while (c.moveToNext()) list.add(c.getString(0))
+                  c.close()
+                  return list
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/liteplay/ultralite/PlaybackService.kt
+          package com.liteplay.ultralite
+
+          import android.app.PendingIntent
+          import android.content.Intent
+          import androidx.media3.common.AudioAttributes
+          import androidx.media3.common.C
+          import androidx.media3.common.util.UnstableApi
+          import androidx.media3.exoplayer.ExoPlayer
+          import androidx.media3.session.MediaSession
+          import androidx.media3.session.MediaSessionService
+          import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
+
+          @UnstableApi
+          class PlaybackService : MediaSessionService() {
+              private var mediaSession: MediaSession? = null
+
+              override fun onCreate() {
+                  super.onCreate()
+                  val renderersFactory = NextRenderersFactory(this)
+                      .setEnableDecoderFallback(true)
+
+                  val audioAttributes = AudioAttributes.Builder()
+                      .setUsage(C.USAGE_MEDIA)
+                      .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                      .build()
+
+                  val player = ExoPlayer.Builder(this, renderersFactory)
+                      .setAudioAttributes(audioAttributes, true)
+                      .setHandleAudioBecomingNoisy(true)
+                      .setWakeMode(C.WAKE_MODE_LOCAL)
+                      .build()
+
+                  val intent = Intent(this, MainActivity::class.java)
+                  val pendingIntent = PendingIntent.getActivity(
+                      this, 0, intent,
+                      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                  )
+
+                  mediaSession = MediaSession.Builder(this, player)
+                      .setSessionActivity(pendingIntent)
+                      .build()
+              }
+
+              override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+                  return mediaSession
+              }
+
+              override fun onTaskRemoved(rootIntent: Intent?) {
+                  val player = mediaSession?.player
+                  if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
+                      stopSelf()
+                  }
+              }
+
+              override fun onDestroy() {
+                  mediaSession?.run {
+                      player.release()
+                      release()
+                      mediaSession = null
+                  }
+                  super.onDestroy()
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/liteplay/ultralite/MainActivity.kt
+          package com.liteplay.ultralite
+
+          import android.Manifest
+          import android.app.AlertDialog
+          import android.content.ComponentName
+          import android.content.ContentUris
+          import android.content.Context
+          import android.content.pm.ActivityInfo
+          import android.content.pm.PackageManager
+          import android.graphics.Color
+          import android.graphics.Typeface
+          import android.graphics.drawable.GradientDrawable
+          import android.media.audiofx.Equalizer
+          import android.net.Uri
+          import android.os.Build
+          import android.os.Bundle
+          import android.os.CountDownTimer
+          import android.os.Handler
+          import android.os.Looper
+          import android.provider.MediaStore
+          import android.text.Editable
+          import android.text.TextUtils
+          import android.text.TextWatcher
+          import android.view.Gravity
+          import android.view.View
+          import android.view.ViewGroup
+          import android.widget.*
+          import androidx.appcompat.app.AppCompatActivity
+          import androidx.core.app.ActivityCompat
+          import androidx.core.content.ContextCompat
+          import androidx.lifecycle.lifecycleScope
+          import androidx.media3.common.C
+          import androidx.media3.common.MediaItem
+          import androidx.media3.common.MediaMetadata
+          import androidx.media3.common.PlaybackException
+          import androidx.media3.common.Player
+          import androidx.media3.common.TrackSelectionOverride
+          import androidx.media3.common.util.UnstableApi
+          import androidx.media3.session.MediaController
+          import androidx.media3.session.SessionToken
+          import androidx.media3.ui.AspectRatioFrameLayout
+          import androidx.media3.ui.PlayerView
+          import com.google.common.util.concurrent.ListenableFuture
+          import com.google.common.util.concurrent.MoreExecutors
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.withContext
+          import java.io.File
+
+          @UnstableApi
+          class MainActivity : AppCompatActivity() {
+
+              private lateinit var db: AppDatabase
+              private var controllerFuture: ListenableFuture<MediaController>? = null
+              private var player: MediaController? = null
+
+              private val allMedia = mutableListOf<LocalMedia>()
+              private var displayedMedia = listOf<LocalMedia>()
+              private var currentCategory = "HOME"
+              private var currentSearch = ""
+
+              private lateinit var mainContainer: LinearLayout
+              private lateinit var contentArea: FrameLayout
+              private lateinit var listContainer: LinearLayout
+              private lateinit var videoOverlay: FrameLayout
+              private lateinit var playerView: PlayerView
+              private lateinit var miniPlayer: LinearLayout
+              private lateinit var miniTitle: TextView
+              private lateinit var miniSub: TextView
+              private lateinit var miniPlayBtn: Button
+              private lateinit var miniSeekBar: SeekBar
+              private lateinit var timerBadge: TextView
+
+              private var sleepTimer: CountDownTimer? = null
+              private var equalizer: Equalizer? = null
+              private var isVideoTouchLocked = false
+              private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+              private var accentColor = Color.parseColor("#00E5FF")
+              private val uiHandler = Handler(Looper.getMainLooper())
+
+              private val progressRunnable = object : Runnable {
+                  override fun run() {
+                      player?.let { p ->
+                          if (p.isPlaying) {
+                              val dur = p.duration.coerceAtLeast(1L)
+                              val pos = p.currentPosition.coerceAtLeast(0L)
+                              miniSeekBar.max = (dur / 1000).toInt().coerceAtLeast(1)
+                              miniSeekBar.progress = (pos / 1000).toInt()
+                              p.currentMediaItem?.mediaId?.let { id ->
+                                  if (id.isNotEmpty()) db.saveRecentAndPosition(id, pos)
+                              }
+                          }
+                      }
+                      uiHandler.postDelayed(this, 1000)
+                  }
+              }
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  db = AppDatabase(this)
+                  val prefs = getSharedPreferences("liteplay_prefs", Context.MODE_PRIVATE)
+                  accentColor = Color.parseColor(prefs.getString("accent", "#00E5FF") ?: "#00E5FF")
+
+                  buildFuturisticUi()
+                  checkAndRequestPermissions()
+              }
+
+              override fun onStart() {
+                  super.onStart()
+                  val sessionToken = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+                  controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
+                  controllerFuture?.addListener({
+                      player = controllerFuture?.get()
+                      setupPlayerListeners()
+                      // Attach video surface when user returns to foreground without restarting playback
+                      if (videoOverlay.visibility == View.VISIBLE) {
+                          playerView.player = player
+                      }
+                      updateMiniPlayerState()
+                  }, MoreExecutors.directExecutor())
+                  uiHandler.post(progressRunnable)
+              }
+
+              override fun onStop() {
+                  super.onStop()
+                  // CRITICAL REQUIREMENT 8: Detach video surface when screen turns off or app goes to background
+                  // so audio from video continues seamlessly in PlaybackService without video rendering drain!
+                  playerView.player = null
+                  uiHandler.removeCallbacks(progressRunnable)
+                  controllerFuture?.let { MediaController.releaseFuture(it) }
+              }
+
+              override fun onDestroy() {
+                  equalizer?.release()
+                  sleepTimer?.cancel()
+                  super.onDestroy()
+              }
+
+              private fun buildFuturisticUi() {
+                  val root = FrameLayout(this).apply {
+                      setBackgroundColor(Color.BLACK)
+                  }
+
+                  mainContainer = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      layoutParams = FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.MATCH_PARENT
+                      )
+                  }
+
+                  // Top Futuristic Header
+                  val header = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.CENTER_VERTICAL
+                      setPadding(28, 28, 28, 16)
+                      setBackgroundColor(Color.parseColor("#060A0F"))
+                  }
+
+                  val titleText = TextView(this).apply {
+                      text = "⚡ LitePlay Ultra Lite"
+                      textSize = 20f
+                      setTypeface(typeface, Typeface.BOLD)
+                      setTextColor(accentColor)
+                      layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                  }
+
+                  timerBadge = TextView(this).apply {
+                      text = ""
+                      textSize = 12f
+                      setTextColor(Color.parseColor("#1DE9B6"))
+                      setPadding(16, 6, 16, 6)
+                  }
+
+                  val eqBtn = createPillButton("🎛️ EQ") { showEqualizerDialog() }
+                  val sleepBtn = createPillButton("🌙 Timer") { showSleepTimerDialog() }
+
+                  header.addView(titleText)
+                  header.addView(timerBadge)
+                  header.addView(eqBtn)
+                  header.addView(sleepBtn)
+                  mainContainer.addView(header)
+
+                  // Search Bar
+                  val searchBox = EditText(this).apply {
+                      hint = "🔍 गाना, वीडियो, एल्बम या फोल्डर खोजें..."
+                      setHintTextColor(Color.parseColor("#667788"))
+                      setTextColor(Color.WHITE)
+                      textSize = 14f
+                      setPadding(32, 20, 32, 20)
+                      background = roundedBg("#0E151F", "#1E2D3D", 28f)
+                      val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                      lp.setMargins(24, 8, 24, 12)
+                      layoutParams = lp
+                      addTextChangedListener(object : TextWatcher {
+                          override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                          override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                              currentSearch = s?.toString() ?: ""
+                              refreshDisplayedList()
+                          }
+                          override fun afterTextChanged(s: Editable?) {}
+                      })
+                  }
+                  mainContainer.addView(searchBox)
+
+                  // Horizontal Navigation Tabs
+                  val tabScroll = HorizontalScrollView(this).apply {
+                      isHorizontalScrollBarEnabled = false
+                      setPadding(16, 4, 16, 12)
+                  }
+                  val tabRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                  val tabs = listOf(
+                      "HOME" to "🏠 Home",
+                      "SONGS" to "🎵 Songs",
+                      "VIDEOS" to "🎬 Videos",
+                      "ALBUMS" to "💿 Albums",
+                      "ARTISTS" to "🎤 Artists",
+                      "FOLDERS" to "📁 Folders",
+                      "FAVORITES" to "❤️ Favorites",
+                      "RECENT" to "🕒 Recent",
+                      "PLAYLISTS" to "📜 Playlists",
+                      "QUEUE" to "📋 Queue",
+                      "SETTINGS" to "⚙️ Settings",
+                      "CODECS" to "🛡️ Format Report"
+                  )
+                  for ((key, label) in tabs) {
+                      val btn = createPillButton(label) {
+                          currentCategory = key
+                          refreshDisplayedList()
+                      }
+                      tabRow.addView(btn)
+                  }
+                  tabScroll.addView(tabRow)
+                  mainContainer.addView(tabScroll)
+
+                  // Scrollable Content Area
+                  contentArea = FrameLayout(this).apply {
+                      layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                  }
+                  val scroll = ScrollView(this).apply {
+                      layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                  }
+                  listContainer = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(20, 8, 20, 40)
+                  }
+                  scroll.addView(listContainer)
+                  contentArea.addView(scroll)
+                  mainContainer.addView(contentArea)
+
+                  // Bottom Now Playing Mini-Player Bar
+                  miniPlayer = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(24, 16, 24, 20)
+                      background = roundedBg("#091018", "#00E5FF", 0f)
+                      setOnClickListener { showFullNowPlayingDialog() }
+                  }
+
+                  miniSeekBar = SeekBar(this).apply {
+                      max = 100
+                      setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                          override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                              if (fromUser) player?.seekTo(p * 1000L)
+                          }
+                          override fun onStartTrackingTouch(sb: SeekBar?) {}
+                          override fun onStopTrackingTouch(sb: SeekBar?) {}
+                      })
+                  }
+                  miniPlayer.addView(miniSeekBar)
+
+                  val controlsRow = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.CENTER_VERTICAL
+                  }
+
+                  val textCol = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                  }
+                  miniTitle = TextView(this).apply {
+                      text = "No Track Selected"
+                      setTextColor(Color.WHITE)
+                      textSize = 15f
+                      setTypeface(typeface, Typeface.BOLD)
+                      maxLines = 1
+                      ellipsize = TextUtils.TruncateAt.END
+                  }
+                  miniSub = TextView(this).apply {
+                      text = "Tap any song or video • Screen-off audio active"
+                      setTextColor(Color.parseColor("#88AACC"))
+                      textSize = 12f
+                      maxLines = 1
+                  }
+                  textCol.addView(miniTitle)
+                  textCol.addView(miniSub)
+
+                  val prevBtn = createPillButton("⏮") { player?.seekToPrevious() }
+                  miniPlayBtn = createPillButton("▶️") {
+                      player?.let { if (it.isPlaying) it.pause() else it.play() }
+                  }
+                  val nextBtn = createPillButton("⏭") { player?.seekToNext() }
+                  val videoToggleBtn = createPillButton("📺") {
+                      if (videoOverlay.visibility == View.VISIBLE) closeVideoOverlay() else openVideoOverlay()
+                  }
+
+                  controlsRow.addView(textCol)
+                  controlsRow.addView(prevBtn)
+                  controlsRow.addView(miniPlayBtn)
+                  controlsRow.addView(nextBtn)
+                  controlsRow.addView(videoToggleBtn)
+                  miniPlayer.addView(controlsRow)
+                  mainContainer.addView(miniPlayer)
+
+                  // Full-Screen Video Player Overlay
+                  videoOverlay = FrameLayout(this).apply {
+                      setBackgroundColor(Color.BLACK)
+                      visibility = View.GONE
+                      layoutParams = FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.MATCH_PARENT
+                      )
+                  }
+
+                  playerView = PlayerView(this).apply {
+                      useController = true
+                      resizeMode = currentResizeMode
+                      layoutParams = FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.MATCH_PARENT
+                      )
+                  }
+
+                  val videoTopBar = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.CENTER_VERTICAL
+                      setPadding(20, 24, 20, 16)
+                      setBackgroundColor(Color.parseColor("#88000000"))
+                      layoutParams = FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.WRAP_CONTENT,
+                          Gravity.TOP
+                      )
+                  }
+
+                  val backAudioBtn = createPillButton("🔙 Background Audio") { closeVideoOverlay() }
+                  val aspectBtn = createPillButton("📐 Fit/Zoom") {
+                      currentResizeMode = when (currentResizeMode) {
+                          AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                          AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                          else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                      }
+                      playerView.resizeMode = currentResizeMode
+                  }
+                  val rotateBtn = createPillButton("🔄 Rotate") {
+                      requestedOrientation = if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
+                          ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                      } else {
+                          ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                      }
+                  }
+                  val speedBtn = createPillButton("⏩ Speed") { showSpeedDialog() }
+                  val tracksBtn = createPillButton("💬 Audio/Subs") { showTrackSelectorDialog() }
+                  val lockBtn = createPillButton("🔒 Lock") {
+                      isVideoTouchLocked = !isVideoTouchLocked
+                      playerView.useController = !isVideoTouchLocked
+                      Toast.makeText(this, if (isVideoTouchLocked) "Touch Locked" else "Touch Unlocked", Toast.LENGTH_SHORT).show()
+                  }
+
+                  videoTopBar.addView(backAudioBtn)
+                  videoTopBar.addView(aspectBtn)
+                  videoTopBar.addView(rotateBtn)
+                  videoTopBar.addView(speedBtn)
+                  videoTopBar.addView(tracksBtn)
+                  videoTopBar.addView(lockBtn)
+
+                  videoOverlay.addView(playerView)
+                  videoOverlay.addView(videoTopBar)
+
+                  root.addView(mainContainer)
+                  root.addView(videoOverlay)
+                  setContentView(root)
+              }
+
+              private fun openVideoOverlay() {
+                  videoOverlay.visibility = View.VISIBLE
+                  playerView.player = player
+              }
+
+              private fun closeVideoOverlay() {
+                  // Detach video surface so audio continues smoothly in background
+                  playerView.player = null
+                  videoOverlay.visibility = View.GONE
+                  requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+              }
+
+              private fun setupPlayerListeners() {
+                  player?.addListener(object : Player.Listener {
+                      override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                          updateMiniPlayerState()
+                      }
+
+                      override fun onIsPlayingChanged(isPlaying: Boolean) {
+                          updateMiniPlayerState()
+                      }
+
+                      override fun onPlayerError(error: PlaybackException) {
+                          Toast.makeText(
+                              this@MainActivity,
+                              "Playback Error (${error.errorCodeName}): Skipping corrupted/unsupported file",
+                              Toast.LENGTH_LONG
+                          ).show()
+                      }
+                  })
+              }
+
+              private fun updateMiniPlayerState() {
+                  val p = player ?: return
+                  val item = p.currentMediaItem
+                  miniTitle.text = item?.mediaMetadata?.title ?: "LitePlay Ready"
+                  miniSub.text = item?.mediaMetadata?.artist ?: "Screen-Off Audio Engine Active"
+                  miniPlayBtn.text = if (p.isPlaying) "⏸" else "▶️"
+              }
+
+              private fun checkAndRequestPermissions() {
+                  val perms = mutableListOf<String>()
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                      perms.add(Manifest.permission.READ_MEDIA_AUDIO)
+                      perms.add(Manifest.permission.READ_MEDIA_VIDEO)
+                      perms.add(Manifest.permission.POST_NOTIFICATIONS)
+                  } else {
+                      perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                  }
+                  val missing = perms.filter {
+                      ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+                  }
+                  if (missing.isNotEmpty()) {
+                      ActivityCompat.requestPermissions(this, missing.toTypedArray(), 101)
+                  } else {
+                      scanOfflineLibrary()
+                  }
+              }
+
+              override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+                  scanOfflineLibrary()
+              }
+
+              private fun scanOfflineLibrary() {
+                  lifecycleScope.launch(Dispatchers.IO) {
+                      val discovered = mutableListOf<LocalMedia>()
+
+                      // Query Audio
+                      val audioProjection = arrayOf(
+                          MediaStore.Audio.Media._ID,
+                          MediaStore.Audio.Media.TITLE,
+                          MediaStore.Audio.Media.ARTIST,
+                          MediaStore.Audio.Media.ALBUM,
+                          MediaStore.Audio.Media.DURATION,
+                          MediaStore.Audio.Media.DATA,
+                          MediaStore.Audio.Media.MIME_TYPE,
+                          MediaStore.Audio.Media.DATE_ADDED
+                      )
+                      contentResolver.query(
+                          MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                          audioProjection, null, null, "${MediaStore.Audio.Media.TITLE} ASC"
+                      )?.use { c ->
+                          val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                          val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                          val artistCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                          val albumCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                          val durCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                          val dataCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                          val mimeCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+                          val dateCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+
+                          while (c.moveToNext()) {
+                              val id = c.getLong(idCol)
+                              val path = c.getString(dataCol) ?: ""
+                              val folder = File(path).parentFile?.name ?: "Music"
+                              val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+                              discovered.add(
+                                  LocalMedia(
+                                      id = id,
+                                      uri = uri,
+                                      title = c.getString(titleCol) ?: "Unknown Audio",
+                                      artist = c.getString(artistCol) ?: "Unknown Artist",
+                                      album = c.getString(albumCol) ?: "Unknown Album",
+                                      folder = folder,
+                                      duration = c.getLong(durCol),
+                                      isVideo = false,
+                                      mimeType = c.getString(mimeCol) ?: "audio/*",
+                                      dateAdded = c.getLong(dateCol)
+                                  )
+                              )
+                          }
+                      }
+
+                      // Query Video
+                      val videoProjection = arrayOf(
+                          MediaStore.Video.Media._ID,
+                          MediaStore.Video.Media.TITLE,
+                          MediaStore.Video.Media.ARTIST,
+                          MediaStore.Video.Media.ALBUM,
+                          MediaStore.Video.Media.DURATION,
+                          MediaStore.Video.Media.DATA,
+                          MediaStore.Video.Media.MIME_TYPE,
+                          MediaStore.Video.Media.DATE_ADDED
+                      )
+                      contentResolver.query(
+                          MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                          videoProjection, null, null, "${MediaStore.Video.Media.TITLE} ASC"
+                      )?.use { c ->
+                          val idCol = c.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+                          val titleCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.TITLE)
+                          val artistCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.ARTIST)
+                          val albumCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.ALBUM)
+                          val durCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
+                          val dataCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
+                          val mimeCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
+                          val dateCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+
+                          while (c.moveToNext()) {
+                              val id = c.getLong(idCol)
+                              val path = c.getString(dataCol) ?: ""
+                              val folder = File(path).parentFile?.name ?: "Videos"
+                              val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                              discovered.add(
+                                  LocalMedia(
+                                      id = id,
+                                      uri = uri,
+                                      title = c.getString(titleCol) ?: "Unknown Video",
+                                      artist = c.getString(artistCol) ?: "Local Video",
+                                      album = c.getString(albumCol) ?: folder,
+                                      folder = folder,
+                                      duration = c.getLong(durCol),
+                                      isVideo = true,
+                                      mimeType = c.getString(mimeCol) ?: "video/*",
+                                      dateAdded = c.getLong(dateCol)
+                                  )
+                              )
+                          }
+                      }
+
+                      withContext(Dispatchers.Main) {
+                          allMedia.clear()
+                          allMedia.addAll(discovered)
+                          refreshDisplayedList()
+                      }
+                  }
+              }
+
+              private fun refreshDisplayedList() {
+                  listContainer.removeAllViews()
+
+                  // Quick Action Bar
+                  val actionBar = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      setPadding(0, 4, 0, 16)
+                  }
+                  val playAllBtn = createPillButton("▶️ Play All") {
+                      if (displayedMedia.isNotEmpty()) playMediaList(displayedMedia, 0, false)
+                  }
+                  val shuffleAllBtn = createPillButton("🔀 Shuffle All") {
+                      if (displayedMedia.isNotEmpty()) playMediaList(displayedMedia.shuffled(), 0, false)
+                  }
+                  val rescanBtn = createPillButton("🔄 Rescan") { scanOfflineLibrary() }
+                  actionBar.addView(playAllBtn)
+                  actionBar.addView(shuffleAllBtn)
+                  actionBar.addView(rescanBtn)
+                  listContainer.addView(actionBar)
+
+                  when (currentCategory) {
+                      "SETTINGS" -> {
+                          renderSettingsView()
+                          return
+                      }
+                      "CODECS" -> {
+                          renderCodecCompatibilityReport()
+                          return
+                      }
+                      "PLAYLISTS" -> {
+                          renderPlaylistsView()
+                          return
+                      }
+                  }
+
+                  val favs = db.getFavorites()
+                  val recents = db.getRecentUris()
+
+                  val baseList = when (currentCategory) {
+                      "SONGS" -> allMedia.filter { !it.isVideo }
+                      "VIDEOS" -> allMedia.filter { it.isVideo }
+                      "FAVORITES" -> allMedia.filter { favs.contains(it.uri.toString()) }
+                      "RECENT" -> recents.mapNotNull { u -> allMedia.find { it.uri.toString() == u } }
+                      "ALBUMS" -> allMedia.sortedBy { it.album }
+                      "ARTISTS" -> allMedia.sortedBy { it.artist }
+                      "FOLDERS" -> allMedia.sortedBy { it.folder }
+                      else -> allMedia
+                  }
+
+                  displayedMedia = if (currentSearch.isBlank()) {
+                      baseList
+                  } else {
+                      val q = currentSearch.lowercase()
+                      baseList.filter {
+                          it.title.lowercase().contains(q) ||
+                          it.artist.lowercase().contains(q) ||
+                          it.album.lowercase().contains(q) ||
+                          it.folder.lowercase().contains(q)
+                      }
+                  }
+
+                  if (displayedMedia.isEmpty()) {
+                      val emptyView = TextView(this).apply {
+                          text = "📭 कोई मीडिया फाइल नहीं मिली।\nफोन में गाने या वीडियो डालें और 'Rescan' दबाएं।"
+                          setTextColor(Color.parseColor("#778899"))
+                          textSize = 15f
+                          gravity = Gravity.CENTER
+                          setPadding(32, 80, 32, 80)
+                      }
+                      listContainer.addView(emptyView)
+                      return
+                  }
+
+                  displayedMedia.forEachIndexed { index, item ->
+                      listContainer.addView(createMediaCard(item, index))
+                  }
+              }
+
+              private fun createMediaCard(item: LocalMedia, index: Int): View {
+                  val card = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.CENTER_VERTICAL
+                      setPadding(24, 20, 24, 20)
+                      background = roundedBg("#0B1119", "#162436", 22f)
+                      val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                      lp.setMargins(0, 0, 0, 14)
+                      layoutParams = lp
+                      setOnClickListener {
+                          playMediaList(displayedMedia, index, item.isVideo)
+                      }
+                  }
+
+                  val iconBadge = TextView(this).apply {
+                      text = if (item.isVideo) "🎬" else "🎵"
+                      textSize = 22f
+                      setPadding(0, 0, 24, 0)
+                  }
+
+                  val infoCol = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                  }
+
+                  val titleTv = TextView(this).apply {
+                      text = item.title
+                      setTextColor(Color.WHITE)
+                      textSize = 15f
+                      setTypeface(typeface, Typeface.BOLD)
+                      maxLines = 1
+                      ellipsize = TextUtils.TruncateAt.END
+                  }
+
+                  val metaTv = TextView(this).apply {
+                      text = "${item.artist} • ${item.folder} • ${formatMs(item.duration)}"
+                      setTextColor(Color.parseColor("#7E99B5"))
+                      textSize = 12f
+                      maxLines = 1
+                      ellipsize = TextUtils.TruncateAt.END
+                  }
+
+                  infoCol.addView(titleTv)
+                  infoCol.addView(metaTv)
+
+                  val isFav = db.isFavorite(item.uri.toString())
+                  val favBtn = createPillButton(if (isFav) "❤️" else "🤍") {
+                      db.toggleFavorite(item.uri.toString())
+                      refreshDisplayedList()
+                  }
+
+                  val moreBtn = createPillButton("⋮") {
+                      showFileActionsDialog(item, index)
+                  }
+
+                  card.addView(iconBadge)
+                  card.addView(infoCol)
+                  card.addView(favBtn)
+                  card.addView(moreBtn)
+                  return card
+              }
+
+              private fun playMediaList(list: List<LocalMedia>, startIndex: Int, openVideoUi: Boolean) {
+                  val p = player ?: return
+                  val mediaItems = list.map { media ->
+                      MediaItem.Builder()
+                          .setMediaId(media.uri.toString())
+                          .setUri(media.uri)
+                          .setMediaMetadata(
+                              MediaMetadata.Builder()
+                                  .setTitle(media.title)
+                                  .setArtist(media.artist)
+                                  .setAlbumTitle(media.album)
+                                  .build()
+                          )
+                          .build()
+                  }
+                  p.setMediaItems(mediaItems, startIndex, 0L)
+                  p.prepare()
+
+                  // Restore saved position if enabled
+                  val prefs = getSharedPreferences("liteplay_prefs", Context.MODE_PRIVATE)
+                  if (prefs.getBoolean("remember_pos", true)) {
+                      val savedPos = db.getSavedPosition(list[startIndex].uri.toString())
+                      if (savedPos > 3000L && savedPos < list[startIndex].duration - 5000L) {
+                          p.seekTo(savedPos)
+                      }
+                  }
+
+                  p.play()
+                  if (openVideoUi) {
+                      openVideoOverlay()
+                  }
+              }
+
+              private fun showFileActionsDialog(item: LocalMedia, index: Int) {
+                  val options = arrayOf(
+                      "▶️ Play Now",
+                      "🎧 Play Video as Background Audio Only",
+                      "⏭ Play Next in Queue",
+                      "➕ Add to Queue",
+                      "❤️ Toggle Favorite",
+                      "📜 Add to Playlist",
+                      "ℹ️ View Codec & File Details",
+                      "🗑️ Delete from Device"
+                  )
+                  AlertDialog.Builder(this)
+                      .setTitle(item.title)
+                      .setItems(options) { _, which ->
+                          when (which) {
+                              0 -> playMediaList(displayedMedia, index, item.isVideo)
+                              1 -> playMediaList(displayedMedia, index, false)
+                              2 -> {
+                                  val mi = MediaItem.Builder().setMediaId(item.uri.toString()).setUri(item.uri)
+                                      .setMediaMetadata(MediaMetadata.Builder().setTitle(item.title).setArtist(item.artist).build()).build()
+                                  val nextIdx = ((player?.currentMediaItemIndex ?: 0) + 1).coerceAtMost(player?.mediaItemCount ?: 0)
+                                  player?.addMediaItem(nextIdx, mi)
+                              }
+                              3 -> {
+                                  val mi = MediaItem.Builder().setMediaId(item.uri.toString()).setUri(item.uri)
+                                      .setMediaMetadata(MediaMetadata.Builder().setTitle(item.title).setArtist(item.artist).build()).build()
+                                  player?.addMediaItem(mi)
+                              }
+                              4 -> {
+                                  db.toggleFavorite(item.uri.toString())
+                                  refreshDisplayedList()
+                              }
+                              5 -> showAddToPlaylistDialog(item)
+                              6 -> {
+                                  AlertDialog.Builder(this)
+                                      .setTitle("Media Details")
+                                      .setMessage("Title: ${item.title}\nArtist: ${item.artist}\nAlbum: ${item.album}\nFolder: ${item.folder}\nMIME: ${item.mimeType}\nDuration: ${formatMs(item.duration)}\nURI: ${item.uri}")
+                                      .setPositiveButton("OK", null)
+                                      .show()
+                              }
+                              7 -> confirmDeleteMediaFile(item)
+                          }
+                      }
+                      .show()
+              }
+
+              private fun confirmDeleteMediaFile(item: LocalMedia) {
+                  AlertDialog.Builder(this)
+                      .setTitle("Delete File from Device?")
+                      .setMessage("क्या आप वाकई '${item.title}' को अपने फोन से हमेशा के लिए डिलीट करना चाहते हैं?")
+                      .setPositiveButton("Delete") { _, _ ->
+                          try {
+                              val rows = contentResolver.delete(item.uri, null, null)
+                              if (rows > 0) {
+                                  Toast.makeText(this, "फाइल डिलीट कर दी गई", Toast.LENGTH_SHORT).show()
+                                  scanOfflineLibrary()
+                              } else {
+                                  Toast.makeText(this, "Android Scoped Storage ने डिलीट रोका", Toast.LENGTH_LONG).show()
+                              }
+                          } catch (e: Exception) {
+                              Toast.makeText(this, "डिलीट करने में त्रुटि: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                          }
+                      }
+                      .setNegativeButton("Cancel", null)
+                      .show()
+              }
+
+              private fun renderPlaylistsView() {
+                  val createBtn = createPillButton("➕ Create New Playlist") {
+                      val input = EditText(this).apply { hint = "Playlist Name" }
+                      AlertDialog.Builder(this)
+                          .setTitle("New Playlist")
+                          .setView(input)
+                          .setPositiveButton("Create") { _, _ ->
+                              db.createPlaylist(input.text.toString())
+                              refreshDisplayedList()
+                          }
+                          .setNegativeButton("Cancel", null)
+                          .show()
+                  }
+                  listContainer.addView(createBtn)
+
+                  val playlists = db.getPlaylists()
+                  for ((plId, plName) in playlists) {
+                      val trackUris = db.getPlaylistTracks(plId)
+                      val tracks = trackUris.mapNotNull { u -> allMedia.find { it.uri.toString() == u } }
+
+                      val row = LinearLayout(this).apply {
+                          orientation = LinearLayout.HORIZONTAL
+                          gravity = Gravity.CENTER_VERTICAL
+                          setPadding(24, 24, 24, 24)
+                          background = roundedBg("#0C141E", "#1F334D", 20f)
+                          val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                          lp.setMargins(0, 12, 0, 12)
+                          layoutParams = lp
+                          setOnClickListener {
+                              if (tracks.isNotEmpty()) playMediaList(tracks, 0, false)
+                              else Toast.makeText(this@MainActivity, "यह प्लेलिस्ट खाली है", Toast.LENGTH_SHORT).show()
+                          }
+                      }
+
+                      val tv = TextView(this).apply {
+                          text = "📜 $plName (${tracks.size} tracks)"
+                          setTextColor(Color.WHITE)
+                          textSize = 16f
+                          layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                      }
+
+                      val delBtn = createPillButton("🗑️") {
+                          db.deletePlaylist(plId)
+                          refreshDisplayedList()
+                      }
+
+                      row.addView(tv)
+                      row.addView(delBtn)
+                      listContainer.addView(row)
+                  }
+              }
+
+              private fun showAddToPlaylistDialog(item: LocalMedia) {
+                  val playlists = db.getPlaylists()
+                  if (playlists.isEmpty()) {
+                      db.createPlaylist("My Top Tracks")
+                  }
+                  val updated = db.getPlaylists()
+                  val names = updated.map { it.second }.toTypedArray()
+                  AlertDialog.Builder(this)
+                      .setTitle("Add to Playlist")
+                      .setItems(names) { _, which ->
+                          db.addTrackToPlaylist(updated[which].first, item.uri.toString())
+                          Toast.makeText(this, "Added to ${names[which]}", Toast.LENGTH_SHORT).show()
+                      }
+                      .show()
+              }
+
+              private fun showFullNowPlayingDialog() {
+                  val p = player ?: return
+                  val options = arrayOf(
+                      "⏯ Play / Pause",
+                      "🔀 Toggle Shuffle (${if (p.shuffleModeEnabled) "ON" else "OFF"})",
+                      "🔁 Cycle Repeat Mode",
+                      "⏩ Playback Speed (${p.playbackParameters.speed}x)",
+                      "📺 Open Video Screen (if Video)",
+                      "🎛️ Open Equalizer",
+                      "🌙 Set Sleep Timer"
+                  )
+                  AlertDialog.Builder(this)
+                      .setTitle(p.currentMediaItem?.mediaMetadata?.title ?: "Now Playing")
+                      .setItems(options) { _, which ->
+                          when (which) {
+                              0 -> if (p.isPlaying) p.pause() else p.play()
+                              1 -> p.shuffleModeEnabled = !p.shuffleModeEnabled
+                              2 -> {
+                                  p.repeatMode = when (p.repeatMode) {
+                                      Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                      Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                      else -> Player.REPEAT_MODE_OFF
+                                  }
+                              }
+                              3 -> showSpeedDialog()
+                              4 -> openVideoOverlay()
+                              5 -> showEqualizerDialog()
+                              6 -> showSleepTimerDialog()
+                          }
+                      }
+                      .show()
+              }
+
+              private fun showSpeedDialog() {
+                  val speeds = arrayOf("0.5x", "0.75x", "1.0x (Normal)", "1.25x", "1.5x", "2.0x")
+                  val values = floatArrayOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+                  AlertDialog.Builder(this)
+                      .setTitle("Playback Speed")
+                      .setItems(speeds) { _, which ->
+                          player?.setPlaybackSpeed(values[which])
+                      }
+                      .show()
+              }
+
+              private fun showTrackSelectorDialog() {
+                  val p = player ?: return
+                  val options = arrayOf("Disable Subtitles", "Enable Default Subtitles")
+                  AlertDialog.Builder(this)
+                      .setTitle("Audio & Subtitle Tracks")
+                      .setItems(options) { _, which ->
+                          val params = p.trackSelectionParameters.buildUpon()
+                              .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, which == 0)
+                              .build()
+                          p.trackSelectionParameters = params
+                      }
+                      .show()
+              }
+
+              private fun showSleepTimerDialog() {
+                  val items = arrayOf("5 Minutes", "10 Minutes", "15 Minutes", "30 Minutes", "45 Minutes", "60 Minutes", "❌ Cancel Timer")
+                  val mins = intArrayOf(5, 10, 15, 30, 45, 60, 0)
+                  AlertDialog.Builder(this)
+                      .setTitle("🌙 Sleep Timer")
+                      .setItems(items) { _, which ->
+                          sleepTimer?.cancel()
+                          val m = mins[which]
+                          if (m == 0) {
+                              timerBadge.text = ""
+                              Toast.makeText(this, "Sleep Timer Cancelled", Toast.LENGTH_SHORT).show()
+                          } else {
+                              sleepTimer = object : CountDownTimer(m * 60 * 1000L, 1000L) {
+                                  override fun onTick(left: Long) {
+                                      timerBadge.text = "⏳ ${formatMs(left)}"
+                                  }
+                                  override fun onFinish() {
+                                      timerBadge.text = ""
+                                      player?.pause()
+                                  }
+                              }.start()
+                          }
+                      }
+                      .show()
+              }
+
+              private fun showEqualizerDialog() {
+                  try {
+                      if (equalizer == null) {
+                          equalizer = Equalizer(0, 0).apply { enabled = true }
+                      }
+                      val eq = equalizer ?: return
+                      val presets = (0 until eq.numberOfPresets).map { eq.getPresetName(it.toShort()) }.toTypedArray()
+                      AlertDialog.Builder(this)
+                          .setTitle("🎛️ Hardware Equalizer Presets")
+                          .setItems(presets) { _, which ->
+                              eq.usePreset(which.toShort())
+                              Toast.makeText(this, "Preset: ${presets[which]}", Toast.LENGTH_SHORT).show()
+                          }
+                          .show()
+                  } catch (e: Exception) {
+                      Toast.makeText(this, "Hardware Equalizer starts once audio is actively playing", Toast.LENGTH_LONG).show()
+                  }
+              }
+
+              private fun renderSettingsView() {
+                  val prefs = getSharedPreferences("liteplay_prefs", Context.MODE_PRIVATE)
+                  val info = TextView(this).apply {
+                      text = "⚙️ LitePlay Ultra Lite Settings\n\n" +
+                              "• 100% Offline Privacy: Zero Internet Permission in Manifest\n" +
+                              "• Screen-Off Audio: Enabled for both Music & Video\n" +
+                              "• Decoder Engine: Media3 ExoPlayer + NextLib FFmpeg Fallback"
+                      setTextColor(Color.WHITE)
+                      textSize = 14f
+                      setPadding(16, 16, 16, 24)
+                  }
+                  listContainer.addView(info)
+
+                  val rememberBtn = createPillButton("💾 Toggle Remember Playback Position") {
+                      val cur = prefs.getBoolean("remember_pos", true)
+                      prefs.edit().putBoolean("remember_pos", !cur).apply()
+                      Toast.makeText(this, "Remember Position: ${!cur}", Toast.LENGTH_SHORT).show()
+                  }
+                  listContainer.addView(rememberBtn)
+              }
+
+              private fun renderCodecCompatibilityReport() {
+                  val report = TextView(this).apply {
+                      text = """
+                          🛡️ HONEST CODEC & FORMAT COMPATIBILITY REPORT
+                          
+                          1. NATIVE & FFMPEG ENGINE SUPPORTED AUDIO:
+                          • MP3, AAC, M4A, FLAC, WAV, PCM, OGG, Opus, Vorbis
+                          • AC3, E-AC3, ALAC, WMA, AMR, APE (via NextLib FFmpeg software decoder)
+                          
+                          2. NATIVE & FFMPEG ENGINE SUPPORTED VIDEO:
+                          • Containers: MP4, MKV, WebM, MOV, AVI, 3GP, TS, M2TS, FLV
+                          • Video Codecs: H.264/AVC, H.265/HEVC, VP8, VP9, AV1, MPEG-4
+                          
+                          3. SCREEN-OFF PLAYBACK ARCHITECTURE:
+                          • Foreground MediaSessionService with WAKE_MODE_LOCAL.
+                          • Detaches SurfaceView onStop() so video audio never pauses when locking screen.
+                          
+                          4. HARDWARE LIMITATIONS:
+                          • 4K/8K 10-bit HEVC/AV1 playback speed depends on device SoC hardware decoder.
+                      """.trimIndent()
+                      setTextColor(Color.parseColor("#00E5FF"))
+                      textSize = 14f
+                      setPadding(24, 24, 24, 24)
+                      background = roundedBg("#09131C", "#00E5FF", 20f)
+                  }
+                  listContainer.addView(report)
+              }
+
+              private fun createPillButton(label: String, onClick: () -> Unit): Button {
+                  return Button(this).apply {
+                      text = label
+                      isAllCaps = false
+                      textSize = 12f
+                      setTextColor(Color.WHITE)
+                      background = roundedBg("#101A26", "#00E5FF", 40f)
+                      setPadding(28, 10, 28, 10)
+                      val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                      lp.setMargins(8, 4, 8, 4)
+                      layoutParams = lp
+                      setOnClickListener { onClick() }
+                  }
+              }
+
+              private fun roundedBg(fillHex: String, strokeHex: String, radius: Float): GradientDrawable {
+                  return GradientDrawable().apply {
+                      setColor(Color.parseColor(fillHex))
+                      setStroke(2, Color.parseColor(strokeHex))
+                      cornerRadius = radius
+                  }
+              }
+
+              private fun formatMs(ms: Long): String {
+                  val totalSec = (ms / 1000).coerceAtLeast(0)
+                  val m = totalSec / 60
+                  val s = totalSec % 60
+                  return String.format("%02d:%02d", m, s)
+              }
+          }
+          EOF
+
+      - name: Build Debug APK with Gradle
+        shell: bash
+        run: |
+          gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload LitePlay-Ultra-Lite-APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LitePlay-Ultra-Lite-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
